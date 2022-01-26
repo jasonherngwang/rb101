@@ -1,8 +1,6 @@
 # Twenty-One Game
 
 # Constants
-# ------------------------------------------------------------------------------
-
 GAME_LIMIT = 21
 DEALER_LIMIT = 17
 
@@ -37,9 +35,6 @@ MESSAGES = {
   separator_line: '-' * 80
 }
 
-# Helper Methods
-# ------------------------------------------------------------------------------
-
 # Display Methods
 
 def prompt(msg)
@@ -73,7 +68,7 @@ def display_hands(cards, hand_values, reveal_dealer: true)
   display_hand(cards[:player], hand_values[:player])
 end
 
-# Setup Deck
+# Deck and Card Methods
 
 def initialize_deck
   SUITS.product(RANKS).shuffle
@@ -84,7 +79,7 @@ def draw_card!(player, cards, hand_values)
   hand_values[player] = calc_hand_value(cards[player])
 end
 
-# Player and Dealer Turns
+# Player and Dealer Turn Methods
 
 def player_turn(cards, hand_values)
   prompt MESSAGES[:player_turn]
@@ -97,7 +92,6 @@ def player_turn(cards, hand_values)
   end
 end
 
-# Ask player to choose hit or stay.
 def query_player_action
   answer = ''
   loop do
@@ -127,14 +121,13 @@ def dealer_turn(cards, hand_values)
   end
 end
 
-# Calculations
+# Calculation Methods
 
 def calc_hand_value(hand)
   hand_sum = hand.reduce(0) do |sum, card|
     sum + CARD_VALUES[card[1]]
   end
 
-  # Check if one ace can be 11 without busting.
   if (hand_sum <= 11) && (hand.any? { |card| card[1] == 'A' })
     hand_sum + 10
   else
@@ -163,7 +156,8 @@ def detect_result(hand_values)
   end
 end
 
-# End-of-game methods
+# End-of-game Methods
+
 def display_game_result(cards, hand_values)
   prompt MESSAGES[:game_over]
 
@@ -191,9 +185,6 @@ def play_again?
   end
 end
 
-# Game Execution
-# ------------------------------------------------------------------------------
-
 # Main Game Loop
 system 'clear'
 display_welcome
@@ -218,10 +209,8 @@ loop do
 
   display_hands(cards, hand_values, reveal_dealer: false)
 
-  # Player Turn
   player_turn(cards, hand_values)
 
-  # Dealer takes turn if player is winning and has not busted.
   if hand_values[:player] > hand_values[:dealer] &&
      !busted?(hand_values[:player])
     dealer_turn(cards, hand_values)
