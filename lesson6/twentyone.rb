@@ -4,9 +4,12 @@
 # ------------------------------------------------------------------------------
 
 GAME_LIMIT = 21
+DEALER_LIMIT = 17
+
 SUITS = %w(H D C S)
 SUIT_SYMBOLS = { 'H' => "\u2665", 'D' => "\u2666",
-                 'C' => "\u2663", 'S' => "\u2660" }
+                 'C' => "\u2663", 'S' => "\u2660",
+                 '?' => '?' }
 RANKS = [*('2'..'10'), 'J', 'Q', 'K', 'A']
 CARD_VALUES = { '2' => 2, '3' => 3, '4' => 4, '5' => 5, '6' => 6, '7' => 7,
                 '8' => 8, '9' => 9, '10' => 10, 'J' => 10, 'Q' => 10,
@@ -16,10 +19,9 @@ MESSAGES = {
   welcome: "Welcome to Twenty-One.",
   rules: "The greater hand value wins, but you bust if you go over 21!",
   goodbye: "Thank you for playing Twenty-One. Goodbye!",
+  continue: "Press Enter to continue.",
   player_turn: "It's your turn.",
   query_player_action: "Hit or Stay? (h/hit or s/stay)",
-  player_stay: "You chose to stay.",
-  player_hit: "You chose to hit.",
   player_busted: "You busted!",
   player_won: "You won!",
   dealer_turn: "It's the dealer's turn.",
@@ -47,33 +49,28 @@ end
 def display_welcome
   prompt MESSAGES[:welcome]
   prompt MESSAGES[:rules]
+  prompt MESSAGES[:continue]
+  gets
 end
 
-def display_goodbye
-  prompt MESSAGES[:goodbye]
-end
-
-# Combine card suit symbol and rank into a single string, for display.
-def format_card(card)
-  "#{SUIT_SYMBOLS[card[0]]}#{card[1]}"
-end
-
-def display_hands(cards, hand_values, reveal_dealer: false)
-  player_hand = cards[:player].map { |card| format_card(card) }
-  dealer_hand = cards[:dealer].map { |card| format_card(card) }
-
-  puts MESSAGES[:separator_line]
-
-  if reveal_dealer
-    prompt "Dealer has: #{dealer_hand.join(', ')}. "\
-           "Total: #{hand_values[:dealer]}"
-  else
-    prompt "Dealer has: #{dealer_hand[0]} + #{dealer_hand.length - 1} more."
+def display_hand(cards, hand_value = nil)
+  card_strings = cards.map { |card| "#{SUIT_SYMBOLS[card[0]]}#{card[1]}" }
+  puts card_strings.join(', ')
+  if hand_value
+    puts "Total: #{hand_value}"
   end
-  prompt "You have: #{player_hand.join(', ')}. "\
-         "Total: #{hand_values[:player]}"
+end
 
-  puts MESSAGES[:separator_line]
+def display_hands(cards, hand_values, reveal_dealer: true)
+  print 'Dealer has: '
+  if reveal_dealer
+    display_hand(cards[:dealer], hand_values[:dealer])
+  else
+    display_hand([cards[:dealer][0], ['?', '?']])
+  end
+
+  print 'You have:   '
+  display_hand(cards[:player], hand_values[:player])
 end
 
 # Setup Deck
@@ -82,23 +79,21 @@ def initialize_deck
   SUITS.product(RANKS).shuffle
 end
 
+def draw_card!(player, cards, hand_values)
+  cards[player] << cards[:deck].pop
+  hand_values[player] = calc_hand_value(cards[player])
+end
+
 # Player and Dealer Turns
 
 def player_turn(cards, hand_values)
   prompt MESSAGES[:player_turn]
-
   loop do
     action = query_player_action
-    if action == :stay
-      prompt MESSAGES[:player_stay]
-      break
-    else
-      prompt MESSAGES[:player_hit]
-      cards[:player] << cards[:deck].pop
-      hand_values[:player] = calc_hand_value(cards[:player])
-      display_hands(cards, hand_values)
-      break if busted?(hand_values[:player])
-    end
+    break if action == :stay
+    draw_card!(:player, cards, hand_values)
+    display_hands(cards, hand_values, reveal_dealer: false)
+    break if busted?(hand_values[:player])
   end
 end
 
@@ -108,6 +103,7 @@ def query_player_action
   loop do
     prompt MESSAGES[:query_player_action]
     answer = gets.chomp.downcase
+    puts
     return :stay if %w(s stay).include? answer
     return :hit if %w(h hit).include? answer
     prompt MESSAGES[:invalid_input]
@@ -115,18 +111,17 @@ def query_player_action
 end
 
 def dealer_turn(cards, hand_values)
-  puts
   prompt MESSAGES[:dealer_turn]
-
   loop do
     sleep 0.5
-    if hand_values[:dealer] >= 17
+    if hand_values[:dealer] >= DEALER_LIMIT
       prompt MESSAGES[:dealer_stay]
+      puts
       break
     end
     prompt MESSAGES[:dealer_hit]
-    cards[:dealer] << cards[:deck].pop
-    hand_values[:dealer] = calc_hand_value(cards[:dealer])
+    puts
+    draw_card!(:dealer, cards, hand_values)
     display_hands(cards, hand_values)
     break if busted?(hand_values[:dealer])
   end
@@ -170,26 +165,19 @@ end
 
 # End-of-game methods
 def display_game_result(cards, hand_values)
-  puts
   prompt MESSAGES[:game_over]
 
   game_result = detect_result(hand_values)
   case game_result
-  when :player_busted
-    prompt MESSAGES[:player_busted]
-  when :dealer_busted
-    prompt MESSAGES[:dealer_busted]
-  when :player
-    prompt MESSAGES[:player_won]
-  when :dealer
-    prompt MESSAGES[:dealer_won]
-  when :tie
-    prompt MESSAGES[:tie]
+  when :player_busted then prompt MESSAGES[:player_busted]
+  when :dealer_busted then prompt MESSAGES[:dealer_busted]
+  when :player        then prompt MESSAGES[:player_won]
+  when :dealer        then prompt MESSAGES[:dealer_won]
+  when :tie           then prompt MESSAGES[:tie]
   end
 
   prompt MESSAGES[:final_hands]
   display_hands(cards, hand_values, reveal_dealer: true)
-  puts
 end
 
 def play_again?
@@ -207,28 +195,28 @@ end
 # ------------------------------------------------------------------------------
 
 # Main Game Loop
+system 'clear'
+display_welcome
+
 loop do
   system 'clear'
-  display_welcome
-
-  # Initialize deck and player hands.
   cards = {
     deck: initialize_deck,
     player: [],
     dealer: []
   }
 
-  2.times do
-    cards[:player] << cards[:deck].pop
-    cards[:dealer] << cards[:deck].pop
-  end
-
   hand_values = {
-    player: calc_hand_value(cards[:player]),
-    dealer: calc_hand_value(cards[:dealer])
+    player: 0,
+    dealer: 0
   }
 
-  display_hands(cards, hand_values)
+  2.times do
+    draw_card!(:player, cards, hand_values)
+    draw_card!(:dealer, cards, hand_values)
+  end
+
+  display_hands(cards, hand_values, reveal_dealer: false)
 
   # Player Turn
   player_turn(cards, hand_values)
@@ -240,6 +228,8 @@ loop do
   end
 
   display_game_result(cards, hand_values)
+  puts
+
   break if play_again?
 end
 
